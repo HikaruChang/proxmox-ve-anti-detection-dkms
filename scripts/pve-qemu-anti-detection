@@ -1,0 +1,576 @@
+#!/bin/bash
+#
+# pve-qemu-anti-detection - DKMS-like auto-patching for pve-qemu-kvm
+#
+# Similar to DKMS for kernel modules, this tool automatically patches
+# pve-qemu-kvm with anti-detection modifications when the package is
+# installed or upgraded.
+#
+
+set -euo pipefail
+
+PROG_NAME="pve-qemu-anti-detection"
+CONF_FILE="/etc/pve-qemu-anti-detection.conf"
+PATCH_SRC_DIR="/usr/src/pve-qemu-anti-detection/patches"
+BUILD_DIR="/var/lib/pve-qemu-anti-detection/build"
+LOG_FILE="/var/log/pve-qemu-anti-detection.log"
+STATE_FILE="/var/lib/pve-qemu-anti-detection/state"
+PVE_QEMU_GIT="git://git.proxmox.com/git/pve-qemu.git"
+BUILD_JOBS=0
+AUTO_REBUILD="yes"
+
+# Load configuration overrides
+if [ -f "$CONF_FILE" ]; then
+    # shellcheck source=/dev/null
+    . "$CONF_FILE"
+fi
+
+# Determine parallel jobs
+if [ "$BUILD_JOBS" -eq 0 ]; then
+    BUILD_JOBS=$(nproc 2>/dev/null || echo 4)
+fi
+
+# Colors for terminal output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+log() {
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] $*" >> "$LOG_FILE" 2>/dev/null || true
+    echo -e "${BLUE}[${PROG_NAME}]${NC} $*"
+}
+
+log_error() {
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] ERROR: $*" >> "$LOG_FILE" 2>/dev/null || true
+    echo -e "${RED}[${PROG_NAME}] ERROR:${NC} $*" >&2
+}
+
+log_success() {
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] $*" >> "$LOG_FILE" 2>/dev/null || true
+    echo -e "${GREEN}[${PROG_NAME}]${NC} $*"
+}
+
+log_warn() {
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] WARNING: $*" >> "$LOG_FILE" 2>/dev/null || true
+    echo -e "${YELLOW}[${PROG_NAME}] WARNING:${NC} $*"
+}
+
+save_state() {
+    mkdir -p "$(dirname "$STATE_FILE")"
+    cat > "$STATE_FILE" <<EOF
+PATCHED_VERSION="$1"
+PATCHED_DATE="$(date -Iseconds)"
+PATCH_FILE="$2"
+EOF
+}
+
+get_installed_version() {
+    dpkg-query -W -f='${Version}' pve-qemu-kvm 2>/dev/null || echo ""
+}
+
+get_patched_version() {
+    if [ -f "$STATE_FILE" ]; then
+        # shellcheck source=/dev/null
+        . "$STATE_FILE"
+        echo "${PATCHED_VERSION:-}"
+    fi
+}
+
+find_pve_qemu_commit() {
+    local version="$1"
+    # The pve-qemu git repo tags releases. Try to find the right commit.
+    # Version format: X.Y.Z-N (e.g., 8.1.5-3)
+    cd "$BUILD_DIR/pve-qemu"
+
+    # Try to find a matching tag first
+    local tag
+    tag=$(git tag -l "*${version}*" 2>/dev/null | head -1)
+    if [ -n "$tag" ]; then
+        log "Found matching tag: $tag"
+        git checkout "$tag" 2>/dev/null
+        return 0
+    fi
+
+    # Try to find in commit messages
+    local commit
+    commit=$(git log --oneline --all --grep="$version" 2>/dev/null | head -1 | awk '{print $1}')
+    if [ -n "$commit" ]; then
+        log "Found matching commit: $commit"
+        git checkout "$commit" 2>/dev/null
+        return 0
+    fi
+
+    # If no match, use the latest commit
+    log_warn "No exact match for version $version, using latest commit"
+    git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
+    return 0
+}
+
+ensure_build_deps() {
+    log "Checking and installing build dependencies..."
+
+    # Install basic tools if missing
+    local missing_pkgs=()
+    for pkg in git build-essential devscripts; do
+        if ! dpkg -l "$pkg" 2>/dev/null | grep -q '^ii'; then
+            missing_pkgs+=("$pkg")
+        fi
+    done
+
+    if [ ${#missing_pkgs[@]} -gt 0 ]; then
+        log "Installing missing packages: ${missing_pkgs[*]}"
+        apt-get install -y "${missing_pkgs[@]}" >> "$LOG_FILE" 2>&1
+    fi
+}
+
+inject_patch_into_rules() {
+    local rules_file="$1"
+    local patch_file="$2"
+
+    # Check if patch injection already exists
+    if grep -q "001-anti-detection.patch" "$rules_file"; then
+        log "Patch injection already present in debian/rules"
+        return 0
+    fi
+
+    # Find the line "# guest-agent is only required for guest systems" and inject before it
+    if grep -q "# guest-agent is only required for guest systems" "$rules_file"; then
+        sed -i '/# guest-agent is only required for guest systems/i\\t# [pve-qemu-anti-detection] Apply anti-detection patch\n\tpatch -p1 < 001-anti-detection.patch\n' "$rules_file"
+        log "Injected patch command into debian/rules"
+    else
+        log_error "Could not find injection point in debian/rules"
+        log_error "Please manually add 'patch -p1 < 001-anti-detection.patch' before the ./configure line"
+        return 1
+    fi
+}
+
+remove_disable_downloads() {
+    local rules_file="$1"
+    # Remove --disable-downloads if present (needed for some versions)
+    if grep -q '\-\-disable-downloads' "$rules_file"; then
+        sed -i '/--disable-downloads/d' "$rules_file"
+        log "Removed --disable-downloads from debian/rules"
+    fi
+}
+
+do_install() {
+    local target_version="${1:-}"
+
+    if [ "$(id -u)" -ne 0 ]; then
+        log_error "This command must be run as root"
+        exit 1
+    fi
+
+    # Get target version
+    if [ -z "$target_version" ]; then
+        target_version=$(get_installed_version)
+        if [ -z "$target_version" ]; then
+            log_error "pve-qemu-kvm is not installed and no version specified"
+            exit 1
+        fi
+    fi
+
+    log "Starting patched build for pve-qemu-kvm version: $target_version"
+
+    # Find patch file
+    local patch_file=""
+    if [ -d "$PATCH_SRC_DIR" ]; then
+        patch_file=$(find "$PATCH_SRC_DIR" -name "*.patch" -type f | sort | head -1)
+    fi
+    if [ -z "$patch_file" ]; then
+        log_error "No patch file found in $PATCH_SRC_DIR"
+        log_error "Please place your patch file in $PATCH_SRC_DIR/"
+        exit 1
+    fi
+    log "Using patch file: $patch_file"
+
+    # Ensure build dependencies
+    ensure_build_deps
+
+    # Prepare build directory
+    mkdir -p "$BUILD_DIR"
+    rm -rf "${BUILD_DIR:?}/pve-qemu"
+
+    # Clone pve-qemu source
+    log "Cloning pve-qemu source repository..."
+    cd "$BUILD_DIR"
+    if ! git clone "$PVE_QEMU_GIT" pve-qemu >> "$LOG_FILE" 2>&1; then
+        log_error "Failed to clone pve-qemu repository"
+        log_error "Make sure git://git.proxmox.com is accessible"
+        exit 1
+    fi
+
+    cd "$BUILD_DIR/pve-qemu"
+
+    # Find the right commit for the target version
+    find_pve_qemu_commit "$target_version"
+
+    # Install build dependencies via mk-build-deps
+    log "Installing build dependencies (this may take a while)..."
+    if ! mk-build-deps --install --tool='apt-get -o Debug::pkgProblemResolver=yes --no-install-recommends --yes' debian/control >> "$LOG_FILE" 2>&1; then
+        log_warn "mk-build-deps had issues, attempting to continue..."
+        apt-get install -f -y >> "$LOG_FILE" 2>&1 || true
+    fi
+
+    # Initialize submodules
+    log "Initializing git submodules..."
+    git submodule update --init >> "$LOG_FILE" 2>&1 || true
+
+    # Copy patch file into qemu subdirectory
+    cp "$patch_file" qemu/001-anti-detection.patch
+    log "Copied patch file to qemu/"
+
+    # Modify debian/rules to inject patch
+    inject_patch_into_rules "debian/rules" "001-anti-detection.patch"
+
+    # Remove --disable-downloads if present
+    remove_disable_downloads "debian/rules"
+
+    # Build
+    log "Building patched pve-qemu-kvm (this will take a while, ~30-60 minutes)..."
+    log "Build log: $LOG_FILE"
+
+    if make -j"$BUILD_JOBS" >> "$LOG_FILE" 2>&1; then
+        log_success "Build completed successfully!"
+    else
+        # Build might "fail" at the dpkg-source step but still produce the .deb
+        local deb_file
+        deb_file=$(find "$BUILD_DIR/pve-qemu" -maxdepth 1 -name "pve-qemu-kvm_*.deb" -type f | head -1)
+        if [ -n "$deb_file" ]; then
+            log_warn "Build reported errors but .deb was produced (this is expected)"
+        else
+            log_error "Build failed. Check log: $LOG_FILE"
+            exit 1
+        fi
+    fi
+
+    # Find the built .deb
+    local deb_file
+    deb_file=$(find "$BUILD_DIR/pve-qemu" -maxdepth 1 -name "pve-qemu-kvm_*.deb" -type f | head -1)
+    if [ -z "$deb_file" ]; then
+        log_error "No .deb file found after build"
+        exit 1
+    fi
+
+    log "Built package: $deb_file"
+
+    # Install the patched .deb
+    log "Installing patched pve-qemu-kvm..."
+    if dpkg -i --force-all "$deb_file" >> "$LOG_FILE" 2>&1; then
+        log_success "Patched pve-qemu-kvm installed successfully!"
+    else
+        log_error "Failed to install patched .deb"
+        exit 1
+    fi
+
+    # Hold the package to prevent apt from overwriting it
+    echo "pve-qemu-kvm hold" | dpkg --set-selections
+    log "Set pve-qemu-kvm on hold to prevent automatic overwrite"
+
+    # Save state
+    save_state "$target_version" "$patch_file"
+
+    log_success "Done! pve-qemu-kvm $target_version has been patched and installed."
+    log "The package is held to prevent apt from overwriting it."
+    log "Use '$PROG_NAME upgrade' to upgrade to a new version."
+}
+
+do_rebuild() {
+    if [ "$(id -u)" -ne 0 ]; then
+        log_error "This command must be run as root"
+        exit 1
+    fi
+
+    local current_version
+    current_version=$(get_installed_version)
+    if [ -z "$current_version" ]; then
+        log_error "pve-qemu-kvm is not installed"
+        exit 1
+    fi
+
+    log "Rebuilding pve-qemu-kvm $current_version with current patches..."
+    do_install "$current_version"
+}
+
+do_upgrade() {
+    if [ "$(id -u)" -ne 0 ]; then
+        log_error "This command must be run as root"
+        exit 1
+    fi
+
+    # Temporarily unhold to check for updates
+    echo "pve-qemu-kvm install" | dpkg --set-selections 2>/dev/null || true
+
+    log "Checking for pve-qemu-kvm updates..."
+    apt-get update >> "$LOG_FILE" 2>&1
+
+    # Check if update is available
+    local update_info
+    update_info=$(apt-get -s upgrade 2>/dev/null | grep "pve-qemu-kvm" || true)
+    if [ -z "$update_info" ]; then
+        log "pve-qemu-kvm is already at the latest version"
+        echo "pve-qemu-kvm hold" | dpkg --set-selections
+        return 0
+    fi
+
+    log "Update available: $update_info"
+
+    # Upgrade the package first
+    apt-get install -y pve-qemu-kvm >> "$LOG_FILE" 2>&1 || true
+
+    local new_version
+    new_version=$(get_installed_version)
+    log "Upgraded to version: $new_version"
+
+    # Now rebuild with patches
+    do_install "$new_version"
+}
+
+do_status() {
+    echo ""
+    echo "=== pve-qemu-anti-detection Status ==="
+    echo ""
+
+    # Installed pve-qemu-kvm version
+    local installed_version
+    installed_version=$(get_installed_version)
+    if [ -n "$installed_version" ]; then
+        echo "  Installed pve-qemu-kvm: $installed_version"
+    else
+        echo "  Installed pve-qemu-kvm: (not installed)"
+    fi
+
+    # Patched version
+    local patched_version
+    patched_version=$(get_patched_version)
+    if [ -n "$patched_version" ]; then
+        echo "  Patched version:        $patched_version"
+        if [ -f "$STATE_FILE" ]; then
+            # shellcheck source=/dev/null
+            . "$STATE_FILE"
+            echo "  Patched date:           ${PATCHED_DATE:-unknown}"
+            echo "  Patch file:             ${PATCH_FILE:-unknown}"
+        fi
+    else
+        echo "  Patched version:        (not patched)"
+    fi
+
+    # Hold status
+    if dpkg --get-selections pve-qemu-kvm 2>/dev/null | grep -q 'hold'; then
+        echo "  Hold status:            HELD (protected from apt overwrite)"
+    else
+        echo "  Hold status:            NOT HELD (apt may overwrite patched version!)"
+    fi
+
+    # Patch status comparison
+    if [ -n "$installed_version" ] && [ -n "$patched_version" ]; then
+        if [ "$installed_version" = "$patched_version" ]; then
+            echo -e "  Status:                 ${GREEN}OK - versions match${NC}"
+        else
+            echo -e "  Status:                 ${YELLOW}MISMATCH - rebuild needed${NC}"
+        fi
+    fi
+
+    # Available patches
+    echo ""
+    echo "  Available patches in $PATCH_SRC_DIR/:"
+    if [ -d "$PATCH_SRC_DIR" ]; then
+        find "$PATCH_SRC_DIR" -name "*.patch" -type f -exec basename {} \; 2>/dev/null | while read -r f; do
+            echo "    - $f"
+        done
+    else
+        echo "    (directory not found)"
+    fi
+
+    # Systemd service status
+    echo ""
+    if command -v systemctl >/dev/null 2>&1; then
+        local svc_status
+        svc_status=$(systemctl is-active pve-qemu-anti-detection-rebuild.service 2>/dev/null || echo "inactive")
+        echo "  Rebuild service:        $svc_status"
+    fi
+
+    echo ""
+}
+
+do_hook() {
+    # Called by APT hook after dpkg operations
+    # Check if pve-qemu-kvm was just installed/upgraded
+
+    if [ "$AUTO_REBUILD" != "yes" ]; then
+        return 0
+    fi
+
+    # Don't trigger during our own package installation (dpkg lock would be held)
+    if fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
+        # dpkg is still running (likely installing pve-qemu-anti-detection itself)
+        # Schedule a one-shot timer to run after dpkg finishes
+        if command -v systemd-run >/dev/null 2>&1; then
+            systemd-run --on-active=30s --unit=pve-qemu-anti-detection-deferred /usr/bin/pve-qemu-anti-detection hook-deferred 2>/dev/null || true
+        fi
+        return 0
+    fi
+
+    do_hook_check
+}
+
+do_hook_deferred() {
+    # Called by the deferred timer after dpkg lock is released
+    do_hook_check
+}
+
+do_hook_check() {
+    local installed_version
+    installed_version=$(get_installed_version)
+    local patched_version
+    patched_version=$(get_patched_version)
+
+    if [ -z "$installed_version" ]; then
+        return 0
+    fi
+
+    # Only auto-rebuild if we have previously patched (state file exists)
+    # First-time setup must be done manually via 'pve-qemu-anti-detection install'
+    if [ -z "$patched_version" ]; then
+        return 0
+    fi
+
+    if [ "$installed_version" != "$patched_version" ]; then
+        log "Detected pve-qemu-kvm version change: ${patched_version:-none} -> $installed_version"
+        log "Starting background rebuild..."
+
+        # Start the systemd service for background rebuild
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl start pve-qemu-anti-detection-rebuild.service &
+            log "Background rebuild service started"
+            log "Monitor progress: journalctl -fu pve-qemu-anti-detection-rebuild.service"
+            log "Or: tail -f $LOG_FILE"
+        else
+            log_warn "systemctl not available, running rebuild in foreground"
+            do_rebuild
+        fi
+    fi
+}
+
+do_log() {
+    if [ -f "$LOG_FILE" ]; then
+        less "$LOG_FILE"
+    else
+        echo "No log file found at $LOG_FILE"
+    fi
+}
+
+do_hold() {
+    if [ "$(id -u)" -ne 0 ]; then
+        log_error "This command must be run as root"
+        exit 1
+    fi
+    echo "pve-qemu-kvm hold" | dpkg --set-selections
+    log_success "pve-qemu-kvm is now held"
+}
+
+do_unhold() {
+    if [ "$(id -u)" -ne 0 ]; then
+        log_error "This command must be run as root"
+        exit 1
+    fi
+    echo "pve-qemu-kvm install" | dpkg --set-selections
+    log_warn "pve-qemu-kvm hold removed - apt may overwrite the patched version!"
+}
+
+show_help() {
+    cat <<EOF
+${PROG_NAME} v1.0.0 - DKMS-like auto-patching for pve-qemu-kvm
+Author: Hikaru <i@rua.moe>
+Source: https://github.com/HikaruChang/proxmox-ve-anti-detection-dkms
+
+Usage: ${PROG_NAME} <command> [options]
+
+Commands:
+  install [version]   Initial setup: fetch source, patch, build, and install
+                      If version is omitted, uses the currently installed version
+  rebuild             Rebuild the current version with latest patches
+  upgrade             Check for pve-qemu-kvm updates, upgrade, and re-patch
+  status              Show current patching status
+  hold                Hold pve-qemu-kvm to prevent apt from overwriting it
+  unhold              Remove hold on pve-qemu-kvm
+  log                 View the build log
+  hook                (Internal) Called by APT hook
+  help                Show this help message
+
+Configuration:
+  Config file: ${CONF_FILE}
+  Patch dir:   ${PATCH_SRC_DIR}/
+  Build dir:   ${BUILD_DIR}/
+  Log file:    ${LOG_FILE}
+
+Workflow:
+  1. Install this package:
+     dpkg -i pve-qemu-anti-detection_*.deb
+
+  2. Run initial patched build:
+     ${PROG_NAME} install
+
+  3. When pve-qemu-kvm is updated by apt, the APT hook will
+     automatically trigger a background rebuild.
+
+  4. To manually upgrade and re-patch:
+     ${PROG_NAME} upgrade
+
+Custom Patches:
+  Place .patch files in ${PATCH_SRC_DIR}/
+  Then run: ${PROG_NAME} rebuild
+
+EOF
+}
+
+# Main
+mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
+
+case "${1:-help}" in
+    install)
+        do_install "${2:-}"
+        ;;
+    rebuild)
+        do_rebuild
+        ;;
+    upgrade)
+        do_upgrade
+        ;;
+    status)
+        do_status
+        ;;
+    hook)
+        do_hook
+        ;;
+    hook-deferred)
+        do_hook_deferred
+        ;;
+    hold)
+        do_hold
+        ;;
+    unhold)
+        do_unhold
+        ;;
+    log)
+        do_log
+        ;;
+    help|--help|-h)
+        show_help
+        ;;
+    *)
+        log_error "Unknown command: $1"
+        show_help
+        exit 1
+        ;;
+esac

@@ -1,0 +1,2 @@
+// APT hook: automatically trigger rebuild when pve-qemu-kvm is installed/upgraded
+DPkg::Post - Invoke { "if [ -x /usr/bin/pve-qemu-anti-detection ]; then /usr/bin/pve-qemu-anti-detection hook >> /var/log/pve-qemu-anti-detection.log 2>&1 || true; fi"; };

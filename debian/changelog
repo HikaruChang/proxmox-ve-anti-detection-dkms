@@ -1,0 +1,9 @@
+pve-qemu-anti-detection (1.0.0-1) stable; urgency=medium
+
+  * Initial release
+  * DKMS-like auto-patching mechanism for pve-qemu-kvm
+  * APT hook integration for automatic rebuild on upgrade
+  * systemd service for background rebuilds
+  * CLI tool for manual management
+
+ -- Hikaru <i@rua.moe>  Sat, 21 Mar 2026 00:00:00 +0800

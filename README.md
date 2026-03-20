@@ -1,9 +1,123 @@
+# Proxmox VE Anti Detection (DKMS-like Auto-Patching)
+
+A DKMS-like mechanism for automatically patching `pve-qemu-kvm` with anti-detection modifications.
+Every time `pve-qemu-kvm` is installed or upgraded via apt, the patch is automatically applied — similar to how DKMS rebuilds kernel modules on kernel updates.
+
+## Quick Start
+
+### Build and install the .deb package (on PVE host)
+
+```bash
+apt install git build-essential devscripts debhelper
+git clone https://github.com/HikaruChang/proxmox-ve-anti-detection-dkms.git
+cd proxmox-ve-anti-detection-dkms
+dpkg-buildpackage -us -uc -b
+dpkg -i ../pve-qemu-anti-detection_1.0.0-1_all.deb
+```
+
+### Initial patched build
+
+```bash
+pve-qemu-anti-detection install
+```
+
+This will:
+1. Clone the `pve-qemu` source matching your installed version
+2. Apply the anti-detection patch
+3. Build the patched `pve-qemu-kvm` .deb (~30-60 minutes)
+4. Install the patched package
+5. Hold `pve-qemu-kvm` to prevent apt from overwriting it
+
+### Automatic rebuild on upgrade
+
+When `pve-qemu-kvm` is updated by apt (e.g., if you remove the hold), the APT hook will
+automatically detect the change and start a background rebuild via systemd.
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `pve-qemu-anti-detection install [version]` | Initial setup: fetch, patch, build, install |
+| `pve-qemu-anti-detection rebuild` | Rebuild current version with latest patches |
+| `pve-qemu-anti-detection upgrade` | Check for updates, upgrade, and re-patch |
+| `pve-qemu-anti-detection status` | Show current patching status |
+| `pve-qemu-anti-detection hold` | Hold pve-qemu-kvm (prevent apt overwrite) |
+| `pve-qemu-anti-detection unhold` | Remove hold |
+| `pve-qemu-anti-detection log` | View build log |
+
+### Custom Patches
+
+Place your `.patch` files in `/usr/src/pve-qemu-anti-detection/patches/`, then run:
+
+```bash
+pve-qemu-anti-detection rebuild
+```
+
+### Configuration
+
+Edit `/etc/pve-qemu-anti-detection.conf` to customize:
+
+```bash
+# PVE QEMU source git repository
+PVE_QEMU_GIT="git://git.proxmox.com/git/pve-qemu.git"
+
+# Number of parallel build jobs (0 = auto-detect)
+BUILD_JOBS=0
+
+# Auto-rebuild on pve-qemu-kvm update (yes/no)
+AUTO_REBUILD="yes"
+```
+
+### How It Works
+
+```
+┌─────────────────────────────────────────────────────┐
+│                 apt upgrade                          │
+│                     │                                │
+│                     ▼                                │
+│          pve-qemu-kvm updated                        │
+│                     │                                │
+│                     ▼                                │
+│   APT DPkg::Post-Invoke hook fires                   │
+│                     │                                │
+│                     ▼                                │
+│   pve-qemu-anti-detection hook                       │
+│     - detects version mismatch                       │
+│     - starts systemd rebuild service                 │
+│                     │                                │
+│                     ▼                                │
+│   Background rebuild:                                │
+│     1. Clone pve-qemu source                         │
+│     2. Apply anti-detection patches                  │
+│     3. Build patched .deb                            │
+│     4. Install patched package                       │
+│     5. Hold package                                  │
+└─────────────────────────────────────────────────────┘
+```
+
+### File Locations
+
+| Path | Description |
+|------|-------------|
+| `/usr/bin/pve-qemu-anti-detection` | Main management script |
+| `/usr/src/pve-qemu-anti-detection/patches/` | Patch files |
+| `/etc/pve-qemu-anti-detection.conf` | Configuration |
+| `/etc/apt/apt.conf.d/99-pve-qemu-anti-detection` | APT hook |
+| `/lib/systemd/system/pve-qemu-anti-detection-rebuild.service` | Systemd service |
+| `/var/lib/pve-qemu-anti-detection/` | Build directory and state |
+| `/var/log/pve-qemu-anti-detection.log` | Build log |
+
+---
+
 # Other Project
 For QEMU ANTIDECTION, see https://github.com/zhaodice/qemu-anti-detection
-# Proxmox VE(PVE 8.1.5-3)
-See https://github.com/zhaodice/proxmox-ve-anti-detection/blob/main/readme-8.1.5-3.md
 
-# Proxmox VE(PVE 8.0.2-3) Anti Detection
+# Manual Build Instructions
+
+## Proxmox VE (PVE 8.1.5-3)
+See https://github.com/HikaruChang/proxmox-ve-anti-detection-dkms/blob/main/readme-8.1.5-3.md
+
+## Proxmox VE (PVE 8.0.2-3) Anti Detection
  | Type       | Engine | Bypass |
  |------------|--------|--------|
  | AntiCheat | Mhyprot | ☑️   |

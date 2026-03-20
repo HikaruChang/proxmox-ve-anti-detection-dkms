@@ -1,0 +1,33 @@
+#!/bin/bash
+set -e
+
+case "$1" in
+    configure)
+        # Enable the systemd service (but don't start it)
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl daemon-reload || true
+            systemctl enable pve-qemu-anti-detection-rebuild.service || true
+        fi
+
+        echo ""
+        echo "=========================================="
+        echo " pve-qemu-anti-detection v1.0.0"
+        echo " Author: Hikaru <i@rua.moe>"
+        echo "=========================================="
+        echo ""
+        echo " To perform the initial patched build:"
+        echo "   pve-qemu-anti-detection install"
+        echo ""
+        echo " The APT hook will automatically rebuild"
+        echo " pve-qemu-kvm when it is upgraded."
+        echo ""
+        echo " For more commands:"
+        echo "   pve-qemu-anti-detection help"
+        echo "=========================================="
+        echo ""
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

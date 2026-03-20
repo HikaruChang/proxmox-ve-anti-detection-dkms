@@ -1,0 +1,28 @@
+#!/bin/bash
+set -e
+
+case "$1" in
+    remove|purge)
+        # Disable and stop the systemd service
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl stop pve-qemu-anti-detection-rebuild.service 2>/dev/null || true
+            systemctl disable pve-qemu-anti-detection-rebuild.service 2>/dev/null || true
+            systemctl daemon-reload || true
+        fi
+
+        # Remove hold on pve-qemu-kvm if set
+        if dpkg --get-selections pve-qemu-kvm 2>/dev/null | grep -q 'hold'; then
+            echo "pve-qemu-kvm install" | dpkg --set-selections 2>/dev/null || true
+            echo "Removed hold on pve-qemu-kvm"
+        fi
+
+        if [ "$1" = "purge" ]; then
+            rm -rf /var/lib/pve-qemu-anti-detection
+            rm -f /var/log/pve-qemu-anti-detection.log
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

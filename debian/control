@@ -1,0 +1,22 @@
+Source: pve-qemu-anti-detection
+Section: admin
+Priority: optional
+Maintainer: Hikaru <i@rua.moe>
+Build-Depends: debhelper (>= 10)
+Standards-Version: 4.5.0
+
+Package: pve-qemu-anti-detection
+Architecture: all
+Depends: ${misc:Depends}, git, build-essential, devscripts, patch
+Recommends: pve-qemu-kvm
+Description: DKMS-like auto-patching for pve-qemu-kvm anti-detection
+ Automatically patches pve-qemu-kvm with anti-detection modifications
+ every time the package is installed or upgraded. Similar to DKMS for
+ kernel modules, this package monitors pve-qemu-kvm changes and
+ rebuilds it with anti-detection patches applied.
+ .
+ Features:
+  - APT hook to detect pve-qemu-kvm installation/upgrade
+  - Background rebuild via systemd service
+  - Manual rebuild/upgrade commands
+  - Patch version management
