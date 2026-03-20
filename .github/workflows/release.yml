@@ -1,0 +1,85 @@
+name: Build & Release .deb
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version override (e.g. 1.0.1-1). Leave empty to use debian/changelog.'
+        required: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y debhelper devscripts dpkg-dev
+
+      - name: Update version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          # TAG format: 1.0.0 or 1.0.0-1
+          if [[ "$TAG" != *-* ]]; then
+            TAG="${TAG}-1"
+          fi
+          CURRENT=$(dpkg-parsechangelog -S Version)
+          if [ "$TAG" != "$CURRENT" ]; then
+            sed -i "1s/([^)]*)/($TAG)/" debian/changelog
+            sed -i "s/^VERSION = .*/VERSION = ${TAG%%-*}/" Makefile
+          fi
+
+      - name: Update version from manual input
+        if: github.event.inputs.version != ''
+        run: |
+          VER="${{ github.event.inputs.version }}"
+          sed -i "1s/([^)]*)/($VER)/" debian/changelog
+          sed -i "s/^VERSION = .*/VERSION = ${VER%%-*}/" Makefile
+
+      - name: Build .deb package
+        run: dpkg-buildpackage -us -uc -b
+
+      - name: Gather artifacts
+        id: artifacts
+        run: |
+          DEB=$(ls ../pve-qemu-anti-detection_*.deb)
+          DEB_NAME=$(basename "$DEB")
+          VERSION=$(dpkg-parsechangelog -S Version)
+          echo "deb_path=$DEB" >> "$GITHUB_OUTPUT"
+          echo "deb_name=$DEB_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifacts.outputs.deb_name }}
+          path: ${{ steps.artifacts.outputs.deb_path }}
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ steps.artifacts.outputs.version }}
+          body: |
+            ## pve-qemu-anti-detection v${{ steps.artifacts.outputs.version }}
+
+            ### Install
+            ```bash
+            wget <release-deb-url>
+            sudo dpkg -i ${{ steps.artifacts.outputs.deb_name }}
+            sudo pve-qemu-anti-detection install
+            ```
+
+            See [README](https://github.com/${{ github.repository }}/blob/main/README.md) for details.
+          files: ${{ steps.artifacts.outputs.deb_path }}
+          generate_release_notes: true
