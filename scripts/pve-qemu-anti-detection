@@ -156,10 +156,10 @@ inject_patch_into_rules() {
 
 remove_disable_downloads() {
     local rules_file="$1"
-    # Remove --disable-downloads if present (needed for some versions)
-    if grep -q '\-\-disable-downloads' "$rules_file"; then
-        sed -i '/--disable-downloads/d' "$rules_file"
-        log "Removed --disable-downloads from debian/rules"
+    # Remove --disable-download(s) if present (needed for some versions)
+    if grep -q '\-\-disable-download' "$rules_file"; then
+        sed -i '/--disable-download/d' "$rules_file"
+        log "Removed --disable-download from debian/rules"
     fi
 }
 
