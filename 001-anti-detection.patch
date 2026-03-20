@@ -334,18 +334,6 @@ diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-ant
      mc->init = virt_init;
      mc->default_cpu_type = M68K_CPU_TYPE_NAME("m68040");
      mc->max_cpus = 1;
-diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-anti-detection.patch' a/hw/misc/pvpanic-isa.c b/hw/misc/pvpanic-isa.c
---- a/hw/misc/pvpanic-isa.c	2026-03-21 02:19:08.547081465 +0800
-+++ b/hw/misc/pvpanic-isa.c	2026-03-21 02:27:52.947413895 +0800
-@@ -69,7 +69,7 @@
-     PVPanicISAState *s = PVPANIC_ISA_DEVICE(adev);
-     Aml *dev = aml_device("PEVT");
- 
--    aml_append(dev, aml_name_decl("_HID", aml_string("QEMU0001")));
-+    aml_append(dev, aml_name_decl("_HID", aml_string("ASUS0001")));
- 
-     crs = aml_resource_template();
-     aml_append(crs,
 diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-anti-detection.patch' a/hw/nvme/ctrl.c b/hw/nvme/ctrl.c
 --- a/hw/nvme/ctrl.c	2026-03-21 02:19:08.619081099 +0800
 +++ b/hw/nvme/ctrl.c	2026-03-21 02:27:52.955413854 +0800
@@ -358,18 +346,6 @@ diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-ant
      strpadcpy((char *)id->fr, sizeof(id->fr), QEMU_VERSION, ' ');
      strpadcpy((char *)id->sn, sizeof(id->sn), n->params.serial, ' ');
  
-diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-anti-detection.patch' a/hw/nvram/fw_cfg.c b/hw/nvram/fw_cfg.c
---- a/hw/nvram/fw_cfg.c	2026-03-21 02:19:08.625081068 +0800
-+++ b/hw/nvram/fw_cfg.c	2026-03-21 02:27:52.960413829 +0800
-@@ -56,7 +56,7 @@
- #define FW_CFG_DMA_CTL_SELECT  0x08
- #define FW_CFG_DMA_CTL_WRITE   0x10
- 
--#define FW_CFG_DMA_SIGNATURE 0x51454d5520434647ULL /* "QEMU CFG" */
-+#define FW_CFG_DMA_SIGNATURE 0x4155535520434647ULL /* "QEMU CFG" */
- 
- struct FWCfgEntry {
-     uint32_t len;
 diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-anti-detection.patch' a/hw/pci-host/gpex.c b/hw/pci-host/gpex.c
 --- a/hw/pci-host/gpex.c	2026-03-21 02:19:08.640080992 +0800
 +++ b/hw/pci-host/gpex.c	2026-03-21 02:27:52.964413809 +0800
@@ -880,70 +856,6 @@ diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-ant
  
  #define ACPI_BUILD_TABLE_FILE "etc/acpi/tables"
  #define ACPI_BUILD_RSDP_FILE "etc/acpi/rsdp"
-diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-anti-detection.patch' a/include/hw/pci/pci.h b/include/hw/pci/pci.h
---- a/include/hw/pci/pci.h	2026-03-21 02:19:09.051078901 +0800
-+++ b/include/hw/pci/pci.h	2026-03-21 02:27:53.227412471 +0800
-@@ -77,19 +77,19 @@
- #define PCI_DEVICE_ID_INTEL_82801IR      0x2922
- 
- /* Red Hat / Qumranet (for QEMU) -- see pci-ids.txt */
--#define PCI_VENDOR_ID_REDHAT_QUMRANET    0x1af4
--#define PCI_SUBVENDOR_ID_REDHAT_QUMRANET 0x1af4
--#define PCI_SUBDEVICE_ID_QEMU            0x1100
-+#define PCI_VENDOR_ID_REDHAT_QUMRANET    0x8086
-+#define PCI_SUBVENDOR_ID_REDHAT_QUMRANET 0x8086
-+#define PCI_SUBDEVICE_ID_QEMU            0x8086
- 
- /* legacy virtio-pci devices */
--#define PCI_DEVICE_ID_VIRTIO_NET         0x1000
--#define PCI_DEVICE_ID_VIRTIO_BLOCK       0x1001
--#define PCI_DEVICE_ID_VIRTIO_BALLOON     0x1002
--#define PCI_DEVICE_ID_VIRTIO_CONSOLE     0x1003
--#define PCI_DEVICE_ID_VIRTIO_SCSI        0x1004
--#define PCI_DEVICE_ID_VIRTIO_RNG         0x1005
--#define PCI_DEVICE_ID_VIRTIO_9P          0x1009
--#define PCI_DEVICE_ID_VIRTIO_VSOCK       0x1012
-+#define PCI_DEVICE_ID_VIRTIO_NET         0x8086
-+#define PCI_DEVICE_ID_VIRTIO_BLOCK       0x8086
-+#define PCI_DEVICE_ID_VIRTIO_BALLOON     0x8086
-+#define PCI_DEVICE_ID_VIRTIO_CONSOLE     0x8086
-+#define PCI_DEVICE_ID_VIRTIO_SCSI        0x8086
-+#define PCI_DEVICE_ID_VIRTIO_RNG         0x8086
-+#define PCI_DEVICE_ID_VIRTIO_9P          0x8086
-+#define PCI_DEVICE_ID_VIRTIO_VSOCK       0x8086
- 
- /*
-  * modern virtio-pci devices get their id assigned automatically,
-@@ -100,7 +100,7 @@
-  */
- #define PCI_DEVICE_ID_VIRTIO_10_BASE     0x1040
- 
--#define PCI_VENDOR_ID_REDHAT             0x1b36
-+#define PCI_VENDOR_ID_REDHAT             0x8086
- #define PCI_DEVICE_ID_REDHAT_BRIDGE      0x0001
- #define PCI_DEVICE_ID_REDHAT_SERIAL      0x0002
- #define PCI_DEVICE_ID_REDHAT_SERIAL2     0x0003
-diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-anti-detection.patch' a/include/standard-headers/linux/qemu_fw_cfg.h b/include/standard-headers/linux/qemu_fw_cfg.h
---- a/include/standard-headers/linux/qemu_fw_cfg.h	2026-03-21 02:19:09.192078184 +0800
-+++ b/include/standard-headers/linux/qemu_fw_cfg.h	2026-03-21 02:27:53.234412435 +0800
-@@ -4,7 +4,7 @@
- 
- #include "standard-headers/linux/types.h"
- 
--#define FW_CFG_ACPI_DEVICE_ID	"QEMU0002"
-+#define FW_CFG_ACPI_DEVICE_ID	"ASUS0002"
- 
- /* selector key values for "well-known" fw_cfg entries */
- #define FW_CFG_SIGNATURE	0x00
-@@ -71,7 +71,7 @@
- #define FW_CFG_DMA_CTL_SELECT	0x08
- #define FW_CFG_DMA_CTL_WRITE	0x10
- 
--#define FW_CFG_DMA_SIGNATURE    0x51454d5520434647ULL /* "QEMU CFG" */
-+#define FW_CFG_DMA_SIGNATURE    0x4155535520434647ULL /* "QEMU CFG" */
- 
- /* Control as first field allows for different structures selected by this
-  * field, which might be useful in the future
 diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-anti-detection.patch' a/migration/options.c b/migration/options.c
 --- a/migration/options.c	2026-03-21 02:19:09.391077172 +0800
 +++ b/migration/options.c	2026-03-21 02:27:53.239412410 +0800
@@ -968,18 +880,6 @@ diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-ant
          [RDMA_CONTROL_RAM_BLOCKS_REQUEST] = "RAM BLOCKS REQUEST",
          [RDMA_CONTROL_RAM_BLOCKS_RESULT] = "RAM BLOCKS RESULT",
          [RDMA_CONTROL_COMPRESS] = "COMPRESS",
-diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-anti-detection.patch' a/pc-bios/optionrom/optionrom.h b/pc-bios/optionrom/optionrom.h
---- a/pc-bios/optionrom/optionrom.h	2026-03-21 02:19:09.714075529 +0800
-+++ b/pc-bios/optionrom/optionrom.h	2026-03-21 02:27:53.254412334 +0800
-@@ -43,7 +43,7 @@
- #define FW_CFG_DMA_CTL_SELECT  0x08
- #define FW_CFG_DMA_CTL_WRITE   0x10
- 
--#define FW_CFG_DMA_SIGNATURE 0x51454d5520434647ULL /* "QEMU CFG" */
-+#define FW_CFG_DMA_SIGNATURE 0x4155535520434647ULL /* "QEMU CFG" */
- 
- #define BIOS_CFG_DMA_ADDR_HIGH  0x514
- #define BIOS_CFG_DMA_ADDR_LOW   0x518
 diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-anti-detection.patch' a/pc-bios/s390-ccw/virtio-scsi.h b/pc-bios/s390-ccw/virtio-scsi.h
 --- a/pc-bios/s390-ccw/virtio-scsi.h	2026-03-21 02:19:09.745075371 +0800
 +++ b/pc-bios/s390-ccw/virtio-scsi.h	2026-03-21 02:27:53.258412313 +0800
