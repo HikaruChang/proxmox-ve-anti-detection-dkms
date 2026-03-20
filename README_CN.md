@@ -136,18 +136,24 @@ qm set <vmid> -smbios1 "uuid=$(cat /proc/sys/kernel/random/uuid),manufacturer=$(
 | WMI 硬件传感器查询（Win32_Fan、CIM_Sensor 等） | 无解决方案 —— 虚拟机缺少物理传感器数据。 |
 | 客户机内的 VirtIO 驱动名称 | 客户机侧 —— 无法从 QEMU 控制。 |
 
-### 反作弊软件状态
+### 反作弊与 DRM 状态
 
-| 反作弊软件 | 状态 | 备注 |
-|-----------|------|------|
-| Mhyprot | ✅ 可绕过 | |
-| Anti Cheat Expert (ACE) | ✅ 可绕过 | |
-| Easy Anti Cheat (EAC) | ⚠️ 仅基础模式 | 深度模式可能检测 VirtIO PCI 或时序 |
-| nProtect GameGuard (NP) | ✅ 可绕过 | |
-| Vanguard | ❌ 不支持 | 内核级检测，深度检查时序和硬件 |
-| Gepard Shield | ⚠️ 有条件 | 需要 [RDTSC-KVM-Handler](https://github.com/WCharacter/RDTSC-KVM-Handler) 宿主机内核补丁 |
+| 软件 | 类型 | 状态 | 备注 |
+|------|------|------|------|
+| Mhyprot | 反作弊 | ✅ 可绕过 | |
+| Anti Cheat Expert (ACE) | 反作弊 | ✅ 可绕过 | |
+| Easy Anti Cheat (EAC) | 反作弊 | ⚠️ 仅基础模式 | 深度模式可能检测 VirtIO PCI 或时序 |
+| nProtect GameGuard (NP) | 反作弊 | ✅ 可绕过 | |
+| Vanguard | 反作弊 | ❌ 不支持 | 内核级检测，深度检查时序和硬件 |
+| Gepard Shield | 反作弊 | ⚠️ 有条件 | 需要 [RDTSC-KVM-Handler](https://github.com/WCharacter/RDTSC-KVM-Handler) 宿主机内核补丁 |
+| Denuvo | DRM | ✅ 可绕过 | 虚拟机检测仅为基础字符串/SMBIOS 检查 |
+| VMProtect | DRM | ✅ 可绕过 | |
+| Themida | DRM | ✅ 可绕过 | |
+| VProtect | DRM | ✅ 可绕过 | |
+| Enigma Protector | DRM | ✅ 可绕过 | |
+| Safengine Shielden | DRM | ✅ 可绕过 | |
 
-> **总结：** 本补丁可以击败大多数软件使用的 **基础虚拟机检测**（VMProtect、Themida 等）和部分反作弊系统。**无法** 可靠绕过 Vanguard 或 EAC 深度检测模式等内核级反作弊。
+> **总结：** 本补丁可以击败大多数 DRM/反篡改软件（Denuvo、VMProtect、Themida 等）使用的 **基础虚拟机检测** 和部分反作弊系统。**无法** 可靠绕过 Vanguard 或 EAC 深度检测模式等内核级反作弊。
 
 ## 性能说明
 
@@ -221,10 +227,12 @@ pve-qemu-anti-detection 钩子
 | `/var/lib/pve-qemu-anti-detection/` | 构建目录和状态 |
 | `/var/log/pve-qemu-anti-detection.log` | 构建日志 |
 
-## 相关项目
+## 致谢
 
-- [qemu-anti-detection](https://github.com/zhaodice/qemu-anti-detection) —— 独立 QEMU 反检测（非 PVE）
-- [RDTSC-KVM-Handler](https://github.com/WCharacter/RDTSC-KVM-Handler) —— 宿主机内核补丁，解决时序侧信道
+灵感源自：
+
+- [qemu-anti-detection](https://github.com/zhaodice/qemu-anti-detection) by [@zhaodice](https://github.com/zhaodice) —— 原始 QEMU 反检测补丁
+- [RDTSC-KVM-Handler](https://github.com/WCharacter/RDTSC-KVM-Handler) by [@WCharacter](https://github.com/WCharacter) —— 宿主机内核补丁，解决时序侧信道
 
 ## 旧版构建说明
 

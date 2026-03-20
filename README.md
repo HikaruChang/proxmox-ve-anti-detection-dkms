@@ -137,18 +137,24 @@ qm set <vmid> -smbios1 "uuid=$(cat /proc/sys/kernel/random/uuid),manufacturer=$(
 | WMI hardware sensor queries (Win32_Fan, CIM_Sensor, etc.) | No solution — VMs lack physical sensor data. |
 | VirtIO driver names in guest | Guest-side — not controllable from QEMU. |
 
-### Anti-Cheat Software Status
+### Anti-Cheat & DRM Status
 
-| Anti-Cheat | Status | Notes |
-|-----------|--------|-------|
-| Mhyprot | ✅ Bypass | |
-| Anti Cheat Expert (ACE) | ✅ Bypass | |
-| Easy Anti Cheat (EAC) | ⚠️ Basic only | Deep mode may detect VirtIO PCI or timing |
-| nProtect GameGuard (NP) | ✅ Bypass | |
-| Vanguard | ❌ Not supported | Kernel-level detection, checks timing + hardware deeply |
-| Gepard Shield | ⚠️ Conditional | Requires [RDTSC-KVM-Handler](https://github.com/WCharacter/RDTSC-KVM-Handler) host kernel patch |
+| Software | Type | Status | Notes |
+|----------|------|--------|-------|
+| Mhyprot | Anti-Cheat | ✅ Bypass | |
+| Anti Cheat Expert (ACE) | Anti-Cheat | ✅ Bypass | |
+| Easy Anti Cheat (EAC) | Anti-Cheat | ⚠️ Basic only | Deep mode may detect VirtIO PCI or timing |
+| nProtect GameGuard (NP) | Anti-Cheat | ✅ Bypass | |
+| Vanguard | Anti-Cheat | ❌ Not supported | Kernel-level detection, checks timing + hardware deeply |
+| Gepard Shield | Anti-Cheat | ⚠️ Conditional | Requires [RDTSC-KVM-Handler](https://github.com/WCharacter/RDTSC-KVM-Handler) host kernel patch |
+| Denuvo | DRM | ✅ Bypass | VM detection is basic string/SMBIOS checks |
+| VMProtect | DRM | ✅ Bypass | |
+| Themida | DRM | ✅ Bypass | |
+| VProtect | DRM | ✅ Bypass | |
+| Enigma Protector | DRM | ✅ Bypass | |
+| Safengine Shielden | DRM | ✅ Bypass | |
 
-> **Summary:** This patch defeats **basic VM detection** used by most software (VMProtect, Themida, etc.) and some anti-cheat systems. It does **NOT** reliably bypass kernel-level anti-cheat like Vanguard or EAC's deep detection mode.
+> **Summary:** This patch defeats **basic VM detection** used by most DRM/anti-tamper software (Denuvo, VMProtect, Themida, etc.) and some anti-cheat systems. It does **NOT** reliably bypass kernel-level anti-cheat like Vanguard or EAC's deep detection mode.
 
 ## Performance Notes
 
@@ -222,10 +228,12 @@ Background rebuild:
 | `/var/lib/pve-qemu-anti-detection/` | Build directory and state |
 | `/var/log/pve-qemu-anti-detection.log` | Build log |
 
-## Related Projects
+## Acknowledgements
 
-- [qemu-anti-detection](https://github.com/zhaodice/qemu-anti-detection) — Standalone QEMU anti-detection (non-PVE)
-- [RDTSC-KVM-Handler](https://github.com/WCharacter/RDTSC-KVM-Handler) — Host kernel patch for timing side-channel
+Inspired by and built upon:
+
+- [qemu-anti-detection](https://github.com/zhaodice/qemu-anti-detection) by [@zhaodice](https://github.com/zhaodice) — The original QEMU anti-detection patch
+- [RDTSC-KVM-Handler](https://github.com/WCharacter/RDTSC-KVM-Handler) by [@WCharacter](https://github.com/WCharacter) — Host kernel patch for timing side-channel
 
 ## Legacy Build Instructions
 
