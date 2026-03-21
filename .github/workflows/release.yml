@@ -52,10 +52,9 @@ jobs:
       - name: Gather artifacts
         id: artifacts
         run: |
-          DEB=$(ls ../pve-qemu-anti-detection_*.deb)
-          DEB_NAME=$(basename "$DEB")
+          cp ../pve-qemu-anti-detection_*.deb .
+          DEB_NAME=$(ls pve-qemu-anti-detection_*.deb)
           VERSION=$(dpkg-parsechangelog -S Version)
-          echo "deb_path=$DEB" >> "$GITHUB_OUTPUT"
           echo "deb_name=$DEB_NAME" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
@@ -63,7 +62,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.artifacts.outputs.deb_name }}
-          path: ${{ steps.artifacts.outputs.deb_path }}
+          path: ${{ steps.artifacts.outputs.deb_name }}
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -81,5 +80,5 @@ jobs:
             ```
 
             See [README](https://github.com/${{ github.repository }}/blob/main/README.md) for details.
-          files: ${{ steps.artifacts.outputs.deb_path }}
+          files: ${{ steps.artifacts.outputs.deb_name }}
           generate_release_notes: true
