@@ -16,7 +16,6 @@ The patch modifies QEMU at **source level** to remove or disguise common VM fing
 | ACPI Creator ID | `BXPC` | `PTL` |
 | SMBIOS defaults | `QEMU`, `Standard PC` | `ASUS`, `M4A88TD-M` |
 | SMBIOS VM flag | `0x14` (VM) | `0x08` (Desktop) |
-| KVM CPUID | `KVMKVMKVM` | `GenuineIntel` |
 | HDA audio vendor | `0x1af4` (Red Hat) | `0x8086` (Intel) |
 | EDID vendor | `RHT` (Red Hat) | `DEL` (Dell) |
 | vmgenid | Enabled | Disabled |
@@ -86,18 +85,18 @@ smbios1: uuid=...,manufacturer=SFAgSW5jLg==,product=UHJvTGlhbnQgREwzODAgR2VuMTA=
 
 ### Windows VMs
 
-Windows VMs should enable **Hyper-V enlightenments** for performance, and use `hv_vendor_id` to disguise the hypervisor vendor:
+Windows VMs need `kvm=off` to hide the KVM CPUID leaf, combined with **Hyper-V enlightenments** to fully compensate for the lost KVM paravirtualization:
 
 ```
-args: -cpu host,+kvm_pv_unhalt,+kvm_pv_eoi,hv_spinlocks=0x1fff,hv_vapic,hv_time,hv_reset,hv_vpindex,hv_runtime,hv_relaxed,hv_vendor_id=intel
+args: -cpu host,kvm=off,+kvm_pv_unhalt,+kvm_pv_eoi,hv_spinlocks=0x1fff,hv_vapic,hv_time,hv_reset,hv_vpindex,hv_runtime,hv_relaxed,hv_vendor_id=intel
 cpu: host
 smbios1: uuid=...,manufacturer=SFAgSW5jLg==,product=UHJvTGlhbnQgREwzODAgR2VuMTA=,version=VTMw,serial=...,sku=...,family=...,base64=1
 ```
 
 Key points:
-- **`hv_vendor_id=intel`** — Changes Hyper-V CPUID vendor string from `Microsoft Hv` to `intel`, hiding the hypervisor identity.
-- **`hv_*` enlightenments** — Enable Windows-specific KVM paravirt optimizations (timers, spinlocks, VAPIC, etc.). Removing these causes significant performance degradation.
-- **Do NOT use `kvm=off`** — The patch already handles KVM CPUID at source level. Adding `kvm=off` disables all KVM paravirtualization and hurts performance.
+- **`kvm=off`** — Hides the entire KVM CPUID leaf (`KVMKVMKVM` signature + feature bits). Anti-cheat software cannot see KVM.
+- **`hv_*` enlightenments** — Provide equivalent paravirt performance to replace hidden KVM features. `hv_time` replaces kvm-clock, `hv_vapic` replaces PV EOI, etc. **Net performance impact: ~0%.**
+- **`hv_vendor_id=intel`** — Changes Hyper-V CPUID vendor string from `Microsoft Hv` to `intel`. Anti-cheat sees Hyper-V (common on physical Windows machines with VBS/HVCI/WSL2) but not `Microsoft Hv`.
 - **Do NOT use `hypervisor=off`** — This clears the CPUID hypervisor bit, which also disables Hyper-V enlightenments, causing Windows to fall back to unoptimized code paths.
 
 ### SMBIOS Configuration
@@ -123,7 +122,7 @@ qm set <vmid> -smbios1 "uuid=$(cat /proc/sys/kernel/random/uuid),manufacturer=$(
 | EDID monitor vendor | ✅ Patched (RHT→DEL) |
 | SMBIOS VM type flag (Type 3 Chassis) | ✅ Patched (0x14→0x08) |
 | HDA audio PCI vendor | ✅ Patched (0x1af4→0x8086) |
-| KVM CPUID signature | ✅ Patched (KVMKVMKVM→GenuineIntel) |
+| KVM CPUID signature | ✅ Hidden via `kvm=off` arg (Windows) / kept for paravirt (Linux) |
 | Hyper-V CPUID vendor string | ✅ Via `hv_vendor_id=intel` arg |
 
 ### What This Patch Does NOT Cover
@@ -160,13 +159,12 @@ qm set <vmid> -smbios1 "uuid=$(cat /proc/sys/kernel/random/uuid),manufacturer=$(
 
 | Configuration | Linux VM Impact | Windows VM Impact |
 |--------------|----------------|-------------------|
-| Patched QEMU only (recommended for Linux) | **~0%** — no measurable overhead | N/A |
-| + `hv_vendor_id=intel` + `hv_*` (recommended for Windows) | N/A | **~0%** — Hyper-V enlightenments preserved |
-| + `kvm=off` | **-5~15%** (up to -30% under heavy I/O) | **-5~15%** |
+| Patched QEMU only (recommended for Linux) | **~0%** — full KVM paravirt | N/A |
+| + `kvm=off` + `hv_*` (recommended for Windows) | N/A | **~0%** — Hyper-V enlightenments replace KVM paravirt |
+| + `kvm=off` without `hv_*` | **-5~15%** (up to -30% under heavy I/O) | **-5~15%** |
 | + `hypervisor=off` | **-5~15%** | **-10~30%** (loses Hyper-V enlightenments) |
-| + `kvm=off` + `hypervisor=off` | **-10~30%** | **-15~40%** |
 
-> **Recommendation:** Use the default configuration (no `kvm=off`, no `hypervisor=off`). The source-level patch handles detection without any performance penalty.
+> **Recommendation:** Linux VMs: no extra args needed. Windows VMs: use `kvm=off` + full `hv_*` enlightenments (see [Windows VMs](#windows-vms) section).
 
 ## Custom Patches
 

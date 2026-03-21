@@ -16,7 +16,6 @@
 | ACPI Creator ID | `BXPC` | `PTL` |
 | SMBIOS 默认值 | `QEMU`, `Standard PC` | `ASUS`, `M4A88TD-M` |
 | SMBIOS 虚拟机标志 | `0x14`（虚拟机） | `0x08`（桌面） |
-| KVM CPUID 签名 | `KVMKVMKVM` | `GenuineIntel` |
 | HDA 音频 PCI 厂商 | `0x1af4`（Red Hat） | `0x8086`（Intel） |
 | EDID 显示器厂商 | `RHT`（Red Hat） | `DEL`（Dell） |
 | vmgenid | 启用 | 禁用 |
@@ -85,18 +84,18 @@ smbios1: uuid=...,manufacturer=SFAgSW5jLg==,product=UHJvTGlhbnQgREwzODAgR2VuMTA=
 
 ### Windows 虚拟机
 
-Windows 虚拟机需要启用 **Hyper-V enlightenments** 以获得良好性能，并使用 `hv_vendor_id` 伪装 hypervisor 厂商：
+Windows 虚拟机需要 `kvm=off` 隐藏 KVM CPUID 叶，同时配合 **Hyper-V enlightenments** 完全补偿失去的 KVM 半虚拟化性能：
 
 ```
-args: -cpu host,+kvm_pv_unhalt,+kvm_pv_eoi,hv_spinlocks=0x1fff,hv_vapic,hv_time,hv_reset,hv_vpindex,hv_runtime,hv_relaxed,hv_vendor_id=intel
+args: -cpu host,kvm=off,+kvm_pv_unhalt,+kvm_pv_eoi,hv_spinlocks=0x1fff,hv_vapic,hv_time,hv_reset,hv_vpindex,hv_runtime,hv_relaxed,hv_vendor_id=intel
 cpu: host
 smbios1: uuid=...,manufacturer=SFAgSW5jLg==,product=UHJvTGlhbnQgREwzODAgR2VuMTA=,version=VTMw,serial=...,sku=...,family=...,base64=1
 ```
 
 要点：
-- **`hv_vendor_id=intel`** —— 将 Hyper-V CPUID 厂商字符串从 `Microsoft Hv` 改为 `intel`，隐藏 hypervisor 身份。
-- **`hv_*` enlightenments** —— 启用 Windows 专属的 KVM 半虚拟化优化（定时器、自旋锁、VAPIC 等）。移除这些会导致严重的性能下降。
-- **不要使用 `kvm=off`** —— 补丁已在源码层面处理 KVM CPUID。添加 `kvm=off` 会禁用所有 KVM 半虚拟化功能，影响性能。
+- **`kvm=off`** —— 隐藏整个 KVM CPUID 叶（`KVMKVMKVM` 签名 + 功能位）。反作弊软件无法看到 KVM。
+- **`hv_*` enlightenments** —— 提供等效的半虚拟化性能来替代隐藏的 KVM 功能。`hv_time` 替代 kvm-clock，`hv_vapic` 替代 PV EOI 等。**净性能影响：~0%。**
+- **`hv_vendor_id=intel`** —— 将 Hyper-V CPUID 厂商字符串从 `Microsoft Hv` 改为 `intel`。反作弊软件看到的是 Hyper-V（物理 Windows 机器上 VBS/HVCI/WSL2 也常见），而非 `Microsoft Hv`。
 - **不要使用 `hypervisor=off`** —— 这会清除 CPUID hypervisor 位，同时也会禁用 Hyper-V enlightenments，导致 Windows 回退到未优化的代码路径。
 
 ### SMBIOS 配置
@@ -122,7 +121,7 @@ qm set <vmid> -smbios1 "uuid=$(cat /proc/sys/kernel/random/uuid),manufacturer=$(
 | EDID 显示器厂商 | ✅ 已修补（RHT→DEL） |
 | SMBIOS 虚拟机类型标志（Type 3 机箱） | ✅ 已修补（0x14→0x08） |
 | HDA 音频 PCI 厂商 | ✅ 已修补（0x1af4→0x8086） |
-| KVM CPUID 签名 | ✅ 已修补（KVMKVMKVM→GenuineIntel） |
+| KVM CPUID 签名 | ✅ 通过 `kvm=off` 参数隐藏（Windows）/ 保留用于半虚拟化（Linux） |
 | Hyper-V CPUID 厂商字符串 | ✅ 通过 `hv_vendor_id=intel` 参数 |
 
 ### 本补丁未覆盖的检测项
@@ -159,13 +158,12 @@ qm set <vmid> -smbios1 "uuid=$(cat /proc/sys/kernel/random/uuid),manufacturer=$(
 
 | 配置 | Linux 虚拟机影响 | Windows 虚拟机影响 |
 |------|-----------------|-------------------|
-| 仅补丁 QEMU（Linux 推荐） | **~0%** —— 无可测量开销 | 不适用 |
-| + `hv_vendor_id=intel` + `hv_*`（Windows 推荐） | 不适用 | **~0%** —— Hyper-V enlightenments 保留 |
-| + `kvm=off` | **-5~15%**（重 I/O 负载下最高 -30%） | **-5~15%** |
+| 仅补丁 QEMU（Linux 推荐） | **~0%** —— 完整 KVM 半虚拟化 | 不适用 |
+| + `kvm=off` + `hv_*`（Windows 推荐） | 不适用 | **~0%** —— Hyper-V enlightenments 替代 KVM 半虚拟化 |
+| + `kvm=off` 不加 `hv_*` | **-5~15%**（重 I/O 负载下最高 -30%） | **-5~15%** |
 | + `hypervisor=off` | **-5~15%** | **-10~30%**（失去 Hyper-V enlightenments） |
-| + `kvm=off` + `hypervisor=off` | **-10~30%** | **-15~40%** |
 
-> **建议：** 使用默认配置（不加 `kvm=off`，不加 `hypervisor=off`）。源码级补丁无需性能代价即可处理检测。
+> **建议：** Linux 虚拟机：无需额外参数。Windows 虚拟机：使用 `kvm=off` + 完整的 `hv_*` enlightenments（参见 [Windows 虚拟机](#windows-虚拟机) 章节）。
 
 ## 自定义补丁
 
