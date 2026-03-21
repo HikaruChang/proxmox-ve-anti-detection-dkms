@@ -16,6 +16,8 @@ BUILD_DIR="/var/lib/pve-qemu-anti-detection/build"
 LOG_FILE="/var/log/pve-qemu-anti-detection.log"
 STATE_FILE="/var/lib/pve-qemu-anti-detection/state"
 PVE_QEMU_GIT="git://git.proxmox.com/git/pve-qemu.git"
+QEMU_GIT_MIRROR=""  # Override URL for QEMU submodule (used in China mirror mode)
+USE_CN_MIRROR=0
 BUILD_JOBS=0
 AUTO_REBUILD="yes"
 
@@ -163,12 +165,27 @@ remove_disable_downloads() {
     fi
 }
 
+setup_cn_mirror() {
+    log "Using China mainland mirror mode..."
+    # Use GitHub mirror for pve-qemu (proxmox official git is very slow from China)
+    PVE_QEMU_GIT="https://github.com/proxmox/pve-qemu.git"
+    # Use GitHub mirror for QEMU submodule (instead of git.proxmox.com mirror)
+    QEMU_GIT_MIRROR="https://github.com/qemu/qemu.git"
+    log "pve-qemu repo: $PVE_QEMU_GIT"
+    log "QEMU submodule mirror: $QEMU_GIT_MIRROR"
+}
+
 do_install() {
     local target_version="${1:-}"
 
     if [ "$(id -u)" -ne 0 ]; then
         log_error "This command must be run as root"
         exit 1
+    fi
+
+    # Apply China mirror if requested
+    if [ "$USE_CN_MIRROR" -eq 1 ]; then
+        setup_cn_mirror
     fi
 
     # Get target version
@@ -224,6 +241,11 @@ do_install() {
 
     # Initialize submodules
     log "Initializing git submodules..."
+    if [ -n "$QEMU_GIT_MIRROR" ]; then
+        log "Rewriting QEMU submodule URL to mirror: $QEMU_GIT_MIRROR"
+        sed -i "s|git://git.proxmox.com/git/mirror_qemu.git|${QEMU_GIT_MIRROR}|g" .gitmodules 2>/dev/null || true
+        git submodule sync >> "$LOG_FILE" 2>&1 || true
+    fi
     git submodule update --init >> "$LOG_FILE" 2>&1 || true
 
     # Copy patch file into qemu subdirectory
@@ -291,6 +313,11 @@ do_rebuild() {
         exit 1
     fi
 
+    # Apply China mirror if requested
+    if [ "$USE_CN_MIRROR" -eq 1 ]; then
+        setup_cn_mirror
+    fi
+
     local current_version
     current_version=$(get_installed_version)
     if [ -z "$current_version" ]; then
@@ -306,6 +333,11 @@ do_upgrade() {
     if [ "$(id -u)" -ne 0 ]; then
         log_error "This command must be run as root"
         exit 1
+    fi
+
+    # Apply China mirror if requested
+    if [ "$USE_CN_MIRROR" -eq 1 ]; then
+        setup_cn_mirror
     fi
 
     # Temporarily unhold to check for updates
@@ -490,7 +522,7 @@ do_unhold() {
 
 show_help() {
     cat <<EOF
-${PROG_NAME} v1.0.0 - DKMS-like auto-patching for pve-qemu-kvm
+${PROG_NAME} v1.0.1 - DKMS-like auto-patching for pve-qemu-kvm
 Author: Hikaru <i@rua.moe>
 Source: https://github.com/HikaruChang/proxmox-ve-anti-detection-dkms
 
@@ -501,6 +533,9 @@ Commands:
                       If version is omitted, uses the currently installed version
   rebuild             Rebuild the current version with latest patches
   upgrade             Check for pve-qemu-kvm updates, upgrade, and re-patch
+
+Global Options (place BEFORE the command):
+  --cn, --china        Use China mainland mirrors (GitHub) for faster downloads
   status              Show current patching status
   hold                Hold pve-qemu-kvm to prevent apt from overwriting it
   unhold              Remove hold on pve-qemu-kvm
@@ -520,6 +555,8 @@ Workflow:
 
   2. Run initial patched build:
      ${PROG_NAME} install
+     # China mainland users (faster downloads):
+     ${PROG_NAME} --cn install
 
   3. When pve-qemu-kvm is updated by apt, the APT hook will
      automatically trigger a background rebuild.
@@ -536,6 +573,19 @@ EOF
 
 # Main
 mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
+
+# Parse global flags
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --cn|--china)
+            USE_CN_MIRROR=1
+            shift
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
 
 case "${1:-help}" in
     install)

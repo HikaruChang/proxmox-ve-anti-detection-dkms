@@ -1,3 +1,14 @@
+pve-qemu-anti-detection (1.0.1-1) stable; urgency=medium
+
+  * Add --cn/--china flag for China mainland mirror mode (GitHub mirrors)
+  * Add USE_CN_MIRROR config option for persistent mirror setting
+  * Fix KVM CPUID signature: remove kvm.c patch to preserve Linux VM
+    paravirtualization (kvm-clock, PV EOI, PV spinlocks, PV IPIs)
+  * Update documentation with China mirror instructions and KVM/Windows
+    VM configuration guidance
+
+ -- Hikaru <i@rua.moe>  Mon, 21 Jul 2025 00:00:00 +0800
+
 pve-qemu-anti-detection (1.0.0-1) stable; urgency=medium
 
   * Initial release

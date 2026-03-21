@@ -33,7 +33,7 @@ apt install git build-essential devscripts debhelper
 git clone https://github.com/HikaruChang/proxmox-ve-anti-detection-dkms.git
 cd proxmox-ve-anti-detection-dkms
 dpkg-buildpackage -us -uc -b
-dpkg -i ../pve-qemu-anti-detection_1.0.0-1_all.deb
+dpkg -i ../pve-qemu-anti-detection_*_all.deb
 ```
 
 ### Initial patched build
@@ -41,6 +41,16 @@ dpkg -i ../pve-qemu-anti-detection_1.0.0-1_all.deb
 ```bash
 pve-qemu-anti-detection install
 ```
+
+> **China mainland users:** The default Proxmox git server (`git.proxmox.com`) is extremely slow from China.
+> Use `--cn` to switch to GitHub mirrors:
+> ```bash
+> pve-qemu-anti-detection --cn install
+> ```
+> Or set it permanently in `/etc/pve-qemu-anti-detection.conf`:
+> ```bash
+> USE_CN_MIRROR=1
+> ```
 
 This will:
 1. Clone the `pve-qemu` source matching your installed version
@@ -65,6 +75,12 @@ automatically detect the change and start a background rebuild via systemd.
 | `pve-qemu-anti-detection hold` | Hold pve-qemu-kvm (prevent apt overwrite) |
 | `pve-qemu-anti-detection unhold` | Remove hold |
 | `pve-qemu-anti-detection log` | View build log |
+
+**Global flags** (place before the command):
+
+| Flag | Description |
+|------|-------------|
+| `--cn` / `--china` | Use GitHub mirrors for faster downloads from China mainland |
 
 ## VM Configuration
 
@@ -187,6 +203,9 @@ BUILD_JOBS=0
 
 # Auto-rebuild on pve-qemu-kvm update (yes/no)
 AUTO_REBUILD="yes"
+
+# China mainland mirror mode (use GitHub mirrors)
+USE_CN_MIRROR=0
 ```
 
 ## How It Works

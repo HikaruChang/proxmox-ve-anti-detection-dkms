@@ -33,7 +33,7 @@ apt install git build-essential devscripts debhelper
 git clone https://github.com/HikaruChang/proxmox-ve-anti-detection-dkms.git
 cd proxmox-ve-anti-detection-dkms
 dpkg-buildpackage -us -uc -b
-dpkg -i ../pve-qemu-anti-detection_1.0.0-1_all.deb
+dpkg -i ../pve-qemu-anti-detection_*_all.deb
 ```
 
 ### 首次构建补丁版 QEMU
@@ -41,6 +41,16 @@ dpkg -i ../pve-qemu-anti-detection_1.0.0-1_all.deb
 ```bash
 pve-qemu-anti-detection install
 ```
+
+> **中国大陆用户：** 默认的 Proxmox git 服务器（`git.proxmox.com`）在国内下载极慢。
+> 使用 `--cn` 切换到 GitHub 镜像加速下载：
+> ```bash
+> pve-qemu-anti-detection --cn install
+> ```
+> 也可以写入配置文件永久生效：
+> ```bash
+> echo 'USE_CN_MIRROR=1' >> /etc/pve-qemu-anti-detection.conf
+> ```
 
 执行流程：
 1. 克隆与当前安装版本匹配的 `pve-qemu` 源码
@@ -64,6 +74,12 @@ pve-qemu-anti-detection install
 | `pve-qemu-anti-detection hold` | 锁定 pve-qemu-kvm（防止 apt 覆盖） |
 | `pve-qemu-anti-detection unhold` | 取消锁定 |
 | `pve-qemu-anti-detection log` | 查看构建日志 |
+
+**全局选项**（放在命令前面）：
+
+| 选项 | 说明 |
+|------|------|
+| `--cn` / `--china` | 使用 GitHub 镜像加速下载（中国大陆推荐） |
 
 ## 虚拟机配置
 
@@ -186,6 +202,9 @@ BUILD_JOBS=0
 
 # pve-qemu-kvm 更新时自动重建（yes/no）
 AUTO_REBUILD="yes"
+
+# 中国大陆镜像模式（使用 GitHub 镜像加速下载）
+USE_CN_MIRROR=0
 ```
 
 ## 工作原理
