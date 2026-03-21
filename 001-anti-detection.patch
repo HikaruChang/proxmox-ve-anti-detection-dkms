@@ -892,17 +892,6 @@ diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-ant
  
  enum virtio_scsi_vq_id {
      VR_CONTROL  = 0,
-diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-anti-detection.patch' a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
---- a/target/i386/kvm/kvm.c	2026-03-21 02:19:10.196073077 +0800
-+++ b/target/i386/kvm/kvm.c	2026-03-21 02:27:53.266412272 +0800
-@@ -2249,6 +2249,6 @@
-         abort();
- #endif
-     } else if (cpu->expose_kvm) {
-         memcpy(signature, "KVMKVMKVM\0\0\0", 12);
-         c = &cpuid_data.entries[cpuid_i++];
-         c->function = KVM_CPUID_SIGNATURE | kvm_base;
-         c->eax = KVM_CPUID_FEATURES | kvm_base;
 diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-anti-detection.patch' a/target/s390x/tcg/misc_helper.c b/target/s390x/tcg/misc_helper.c
 --- a/target/s390x/tcg/misc_helper.c	2026-03-21 02:19:10.399072044 +0800
 +++ b/target/s390x/tcg/misc_helper.c	2026-03-21 02:27:53.294412130 +0800
