@@ -1,0 +1,41 @@
+pve-qemu-anti-detection (1.1.0-1) stable; urgency=medium
+
+  * Rebase anti-detection patch onto QEMU 11.0.x
+    - hw/pci-host/gpex.c: context changed, set_bit(DEVICE_CATEGORY_BRIDGE)
+      was dropped upstream
+    - hw/scsi/scsi-bus.c: qemu_hw_version() replaced by the QEMU_HW_VERSION
+      macro in trailing context
+    - hw/smbios/smbios.c: upstream made the SMBIOS "Virtual Machine" bit
+      conditional on smbios_type0.vm; the block is now removed outright so
+      the bit is never advertised
+  * Add -smbios type=3,chassis-type=N. QEMU hardcodes 0x01 ("Other"), a value
+    no real machine reports; the option lets the guest chassis type match the
+    host (e.g. 6 = Mini Tower). Defaults to 0x03 (Desktop) when unset.
+  * Document full host SMBIOS passthrough (types 0/1/2/3/4/11/17). PVE only
+    sets type 1, so the remaining tables fall back to the patch defaults and
+    leak "ASUS" into the baseboard, chassis, CPU and memory manufacturers.
+  * Correct the claim that OVMF firmware strings cannot be changed: -smbios
+    type=0 does override OVMF's own BIOS identity, verified in a guest.
+
+ -- Hikaru Chang <i@rua.moe>  Sun, 13 Sep 2026 20:53:59 +0900
+
+pve-qemu-anti-detection (1.0.1-1) stable; urgency=medium
+
+  * Add --cn/--china flag for China mainland mirror mode (GitHub mirrors)
+  * Add USE_CN_MIRROR config option for persistent mirror setting
+  * Fix KVM CPUID signature: remove kvm.c patch to preserve Linux VM
+    paravirtualization (kvm-clock, PV EOI, PV spinlocks, PV IPIs)
+  * Update documentation with China mirror instructions and KVM/Windows
+    VM configuration guidance
+
+ -- Hikaru <i@rua.moe>  Mon, 21 Jul 2025 00:00:00 +0800
+
+pve-qemu-anti-detection (1.0.0-1) stable; urgency=medium
+
+  * Initial release
+  * DKMS-like auto-patching mechanism for pve-qemu-kvm
+  * APT hook integration for automatic rebuild on upgrade
+  * systemd service for background rebuilds
+  * CLI tool for manual management
+
+ -- Hikaru <i@rua.moe>  Sat, 21 Mar 2026 00:00:00 +0800

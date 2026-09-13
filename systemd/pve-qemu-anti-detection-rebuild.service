@@ -1,0 +1,20 @@
+[Unit]
+Description=Rebuild pve-qemu-kvm with anti-detection patches
+Documentation=https://github.com/HikaruChang/proxmox-ve-anti-detection-dkms
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/pve-qemu-anti-detection rebuild
+TimeoutStartSec=7200
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+ProtectSystem=false
+PrivateTmp=true
+NoNewPrivileges=false
+
+[Install]
+WantedBy=multi-user.target

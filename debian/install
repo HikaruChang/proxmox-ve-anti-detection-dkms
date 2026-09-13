@@ -1,0 +1,5 @@
+patches/001-anti-detection.patch usr/src/pve-qemu-anti-detection/patches
+scripts/pve-qemu-anti-detection usr/bin
+conf/pve-qemu-anti-detection.conf etc
+hooks/99-pve-qemu-anti-detection etc/apt/apt.conf.d
+systemd/pve-qemu-anti-detection-rebuild.service lib/systemd/system

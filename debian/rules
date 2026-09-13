@@ -1,0 +1,16 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	@echo "Skip build - nothing to compile"
+
+override_dh_auto_clean:
+	@echo "Skip auto-clean"
+
+override_dh_installsystemd:
+	dh_installsystemd --no-start --no-restart-after-upgrade
+
+override_dh_systemd_start:
+	dh_systemd_start --no-start --no-restart-after-upgrade
