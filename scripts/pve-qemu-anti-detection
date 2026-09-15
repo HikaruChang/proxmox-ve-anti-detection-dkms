@@ -148,6 +148,7 @@ inject_patch_into_rules() {
     # Find the line "# guest-agent is only required for guest systems" and inject before it
     if grep -q "# guest-agent is only required for guest systems" "$rules_file"; then
         sed -i '/# guest-agent is only required for guest systems/i\\t# [pve-qemu-anti-detection] Apply anti-detection patch\n\tpatch -p1 < 001-anti-detection.patch\n' "$rules_file"
+        sed -i "s|patch -p1 < 001-anti-detection.patch|patch -p1 < ${patch_file}|" "$rules_file"
         log "Injected patch command into debian/rules"
     else
         log_error "Could not find injection point in debian/rules"
@@ -248,12 +249,11 @@ do_install() {
     fi
     git submodule update --init >> "$LOG_FILE" 2>&1 || true
 
-    # Copy patch file into qemu subdirectory
-    cp "$patch_file" qemu/001-anti-detection.patch
-    log "Copied patch file to qemu/"
-
-    # Modify debian/rules to inject patch
-    inject_patch_into_rules "debian/rules" "001-anti-detection.patch"
+    # Reference the patch by absolute path. A copy inside qemu/ would be an
+    # untracked file, and upstream debian/rules runs "git clean -xdfi" on a copy
+    # of that tree - with something to remove, the -i makes it prompt and the
+    # build hangs forever waiting on stdin.
+    inject_patch_into_rules "debian/rules" "$patch_file"
 
     # Remove --disable-downloads if present
     remove_disable_downloads "debian/rules"
@@ -262,7 +262,7 @@ do_install() {
     log "Building patched pve-qemu-kvm (this will take a while, ~30-60 minutes)..."
     log "Build log: $LOG_FILE"
 
-    if make -j"$BUILD_JOBS" >> "$LOG_FILE" 2>&1; then
+    if make -j"$BUILD_JOBS" < /dev/null >> "$LOG_FILE" 2>&1; then
         log_success "Build completed successfully!"
     else
         # Build might "fail" at the dpkg-source step but still produce the .deb
@@ -339,6 +339,17 @@ do_upgrade() {
     if [ "$USE_CN_MIRROR" -eq 1 ]; then
         setup_cn_mirror
     fi
+
+    # The hold must come back even if the rebuild fails or is interrupted -
+    # otherwise the box is left running the stock, unpatched package with
+    # nothing stopping the next apt run from keeping it that way.
+    restore_hold() {
+        if ! dpkg --get-selections pve-qemu-kvm 2>/dev/null | grep -q hold; then
+            echo "pve-qemu-kvm hold" | dpkg --set-selections 2>/dev/null || true
+            log_warn "Restored hold on pve-qemu-kvm after an incomplete upgrade"
+        fi
+    }
+    trap restore_hold EXIT INT TERM
 
     # Temporarily unhold to check for updates
     echo "pve-qemu-kvm install" | dpkg --set-selections 2>/dev/null || true

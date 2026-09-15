@@ -1,3 +1,18 @@
+pve-qemu-anti-detection (1.1.1-1) stable; urgency=high
+
+  * Fix the rebuild hanging indefinitely. The patch was copied into qemu/ and
+    so became an untracked file; upstream debian/rules runs "git clean -xdfi"
+    on a copy of that tree, and with something to remove the -i makes it print
+    "What now>" and wait on stdin forever. The patch is now applied by absolute
+    path and never placed inside the source tree.
+  * Close stdin for the package build so no interactive prompt can stall it.
+  * Restore the apt hold when an upgrade fails or is interrupted. Previously
+    "upgrade" unheld the package, installed the stock build over the patched
+    one, and left it that way if the rebuild did not finish - the host kept
+    running an unpatched qemu with nothing preventing apt from reinstalling it.
+
+ -- Hikaru Chang <i@rua.moe>  Wed, 16 Sep 2026 02:45:50 +0900
+
 pve-qemu-anti-detection (1.1.0-1) stable; urgency=medium
 
   * Rebase anti-detection patch onto QEMU 11.0.x
