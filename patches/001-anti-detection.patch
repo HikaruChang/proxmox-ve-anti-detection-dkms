@@ -2,7 +2,7 @@ Powered by NyphexAI
 Developed by Hikaru(i@rua.moe)
 
 pve-qemu anti-detection patch
-Target: QEMU 11.0.x (verified against 11.0.3 + pve-qemu 11.0.3-3 patch series)
+Target: QEMU 11.1.x (verified against 11.1.3 + pve-qemu 11.1.3-1 patch series)
         82 hunks / 48 files, applies clean
 
 Adds -smbios type=3,chassis-type=N so the guest chassis type can match the host
@@ -12,7 +12,7 @@ diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-ant
 --- a/block/vhdx.c	2026-03-21 02:19:07.869084914 +0800
 +++ b/block/vhdx.c	2026-03-21 02:27:52.575415787 +0800
 @@ -2020,7 +2020,7 @@
- 
+
      /* The creator field is optional, but may be useful for
       * debugging / diagnostics */
 -    creator = g_utf8_to_utf16("QEMU v" QEMU_VERSION, -1, NULL,
@@ -347,15 +347,17 @@ diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-ant
 diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-anti-detection.patch' a/hw/nvme/ctrl.c b/hw/nvme/ctrl.c
 --- a/hw/nvme/ctrl.c	2026-03-21 02:19:08.619081099 +0800
 +++ b/hw/nvme/ctrl.c	2026-03-21 02:27:52.955413854 +0800
-@@ -8791,7 +8791,7 @@
+@@ -9267,8 +9267,8 @@
  
      id->vid = cpu_to_le16(pci_get_word(pci_conf + PCI_VENDOR_ID));
      id->ssvid = cpu_to_le16(pci_get_word(pci_conf + PCI_SUBSYSTEM_VENDOR_ID));
--    strpadcpy((char *)id->mn, sizeof(id->mn), "QEMU NVMe Ctrl", ' ');
-+    strpadcpy((char *)id->mn, sizeof(id->mn), "ASUS NVMe Ctrl", ' ');
-     strpadcpy((char *)id->fr, sizeof(id->fr), QEMU_VERSION, ' ');
+-    strpadcpy((char *)id->mn, sizeof(id->mn),
+-              n->params.model ? n->params.model : "QEMU NVMe Ctrl", ' ');
++    strpadcpy((char *)id->mn, sizeof(id->mn),
++              n->params.model ? n->params.model : "ASUS NVMe Ctrl", ' ');
+     strpadcpy((char *)id->fr, sizeof(id->fr),
+               n->params.firmware_version ? n->params.firmware_version : QEMU_VERSION, ' ');
      strpadcpy((char *)id->sn, sizeof(id->sn), n->params.serial, ' ');
- 
 diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-anti-detection.patch' a/hw/pci-host/gpex.c b/hw/pci-host/gpex.c
 --- a/hw/pci-host/gpex.c	2026-03-21 02:19:08.640080992 +0800
 +++ b/hw/pci-host/gpex.c	2026-03-21 02:27:52.964413809 +0800
@@ -792,24 +794,22 @@ diff -ruN --no-dereference '--exclude=.pc' '--exclude=debian' '--exclude=001-ant
      [STR_PRODUCT]          = "Wacom PenPartner",
      [STR_SERIALNUMBER]     = "1",
  };
-@@ -231,7 +231,7 @@
- 
-     if (!s->mouse_grabbed) {
-         s->eh_entry = qemu_add_mouse_event_handler(usb_mouse_event, s, 0,
--                        "QEMU PenPartner tablet");
-+                        "ASUS PenPartner tablet");
-         qemu_activate_mouse_event_handler(s->eh_entry);
-         s->mouse_grabbed = 1;
-     }
-@@ -269,7 +269,7 @@
- 
-     if (!s->mouse_grabbed) {
-         s->eh_entry = qemu_add_mouse_event_handler(usb_wacom_event, s, 1,
--                        "QEMU PenPartner tablet");
-+                        "ASUS PenPartner tablet");
-         qemu_activate_mouse_event_handler(s->eh_entry);
-         s->mouse_grabbed = 1;
-     }
+@@ -236,7 +236,7 @@
+ static void usb_wacom_register_input_handler(USBWacomState *s, bool absolute)
+ {
+     static const QemuInputHandler usb_wacom_abs_handler = {
+-        .name  = "QEMU PenPartner tablet",
++        .name  = "ASUS PenPartner tablet",
+         .mask  = INPUT_EVENT_MASK_BTN | INPUT_EVENT_MASK_ABS,
+         .event = usb_wacom_input_event,
+         .sync  = usb_wacom_input_sync,
+@@ -245,5 +245,5 @@
+     static const QemuInputHandler usb_wacom_rel_handler = {
+-        .name  = "QEMU PenPartner tablet",
++        .name  = "ASUS PenPartner tablet",
+         .mask  = INPUT_EVENT_MASK_BTN | INPUT_EVENT_MASK_REL,
+         .event = usb_wacom_input_event,
+         .sync  = usb_wacom_input_sync,
 @@ -425,7 +425,7 @@
      DeviceClass *dc = DEVICE_CLASS(klass);
      USBDeviceClass *uc = USB_DEVICE_CLASS(klass);

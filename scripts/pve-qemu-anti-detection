@@ -10,16 +10,19 @@
 set -euo pipefail
 
 PROG_NAME="pve-qemu-anti-detection"
+PROG_VERSION="1.1.2"
 CONF_FILE="/etc/pve-qemu-anti-detection.conf"
 PATCH_SRC_DIR="/usr/src/pve-qemu-anti-detection/patches"
 BUILD_DIR="/var/lib/pve-qemu-anti-detection/build"
 LOG_FILE="/var/log/pve-qemu-anti-detection.log"
 STATE_FILE="/var/lib/pve-qemu-anti-detection/state"
+BUILD_LOCK_FILE="/run/lock/pve-qemu-anti-detection.lock"
 PVE_QEMU_GIT="git://git.proxmox.com/git/pve-qemu.git"
 QEMU_GIT_MIRROR=""  # Override URL for QEMU submodule (used in China mirror mode)
 USE_CN_MIRROR=0
 BUILD_JOBS=0
 AUTO_REBUILD="yes"
+BUILD_LOCK_HELD=0
 
 # Load configuration overrides
 if [ -f "$CONF_FILE" ]; then
@@ -65,6 +68,20 @@ log_warn() {
     timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     echo "[$timestamp] WARNING: $*" >> "$LOG_FILE" 2>/dev/null || true
     echo -e "${YELLOW}[${PROG_NAME}] WARNING:${NC} $*"
+}
+
+acquire_build_lock() {
+    if [ "$BUILD_LOCK_HELD" -eq 1 ]; then
+        return 0
+    fi
+
+    mkdir -p "$(dirname "$BUILD_LOCK_FILE")"
+    exec 9>"$BUILD_LOCK_FILE"
+    if ! flock -n 9; then
+        log_error "Another pve-qemu anti-detection build is already running"
+        return 1
+    fi
+    BUILD_LOCK_HELD=1
 }
 
 save_state() {
@@ -184,6 +201,8 @@ do_install() {
         exit 1
     fi
 
+    acquire_build_lock
+
     # Apply China mirror if requested
     if [ "$USE_CN_MIRROR" -eq 1 ]; then
         setup_cn_mirror
@@ -247,7 +266,10 @@ do_install() {
         sed -i "s|git://git.proxmox.com/git/mirror_qemu.git|${QEMU_GIT_MIRROR}|g" .gitmodules 2>/dev/null || true
         git submodule sync >> "$LOG_FILE" 2>&1 || true
     fi
-    git submodule update --init >> "$LOG_FILE" 2>&1 || true
+    if ! git submodule update --init >> "$LOG_FILE" 2>&1; then
+        log_error "Failed to initialize the QEMU source submodule"
+        exit 1
+    fi
 
     # Reference the patch by absolute path. A copy inside qemu/ would be an
     # untracked file, and upstream debian/rules runs "git clean -xdfi" on a copy
@@ -334,6 +356,10 @@ do_upgrade() {
         log_error "This command must be run as root"
         exit 1
     fi
+
+    # Hold the lock across apt as its post-hook can otherwise start a second
+    # rebuild before this foreground upgrade reaches do_install().
+    acquire_build_lock
 
     # Apply China mirror if requested
     if [ "$USE_CN_MIRROR" -eq 1 ]; then
@@ -482,6 +508,13 @@ do_hook_check() {
         return 0
     fi
 
+    # Installing build dependencies invokes the APT post-hook too. Do not
+    # start a second service that races the foreground build over BUILD_DIR.
+    if ! flock -n "$BUILD_LOCK_FILE" -c true 2>/dev/null; then
+        log "A patched build is already in progress; skipping duplicate rebuild"
+        return 0
+    fi
+
     # Only auto-rebuild if we have previously patched (state file exists)
     # First-time setup must be done manually via 'pve-qemu-anti-detection install'
     if [ -z "$patched_version" ]; then
@@ -533,7 +566,7 @@ do_unhold() {
 
 show_help() {
     cat <<EOF
-${PROG_NAME} v1.0.1 - DKMS-like auto-patching for pve-qemu-kvm
+${PROG_NAME} v${PROG_VERSION} - DKMS-like auto-patching for pve-qemu-kvm
 Author: Hikaru <i@rua.moe>
 Source: https://github.com/HikaruChang/proxmox-ve-anti-detection-dkms
 

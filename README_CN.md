@@ -294,7 +294,7 @@ pve-qemu-anti-detection 钩子
 | `/usr/src/pve-qemu-anti-detection/patches/` | 补丁文件 |
 | `/etc/pve-qemu-anti-detection.conf` | 配置文件 |
 | `/etc/apt/apt.conf.d/99-pve-qemu-anti-detection` | APT 钩子 |
-| `/lib/systemd/system/pve-qemu-anti-detection-rebuild.service` | Systemd 服务 |
+| `/usr/lib/systemd/system/pve-qemu-anti-detection-rebuild.service` | Systemd 服务 |
 | `/var/lib/pve-qemu-anti-detection/` | 构建目录和状态 |
 | `/var/log/pve-qemu-anti-detection.log` | 构建日志 |
 

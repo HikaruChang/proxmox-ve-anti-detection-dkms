@@ -10,7 +10,7 @@ Files: patches/001-anti-detection.patch
 Copyright: 2023-2026 zhaodice <https://github.com/zhaodice>
            2026 Hikaru Chang <i@rua.moe>
 Comment: Derived from https://github.com/zhaodice/qemu-anti-detection and
- rebased onto QEMU 11.0.x. The patch modifies QEMU source code, which is
+ rebased onto QEMU 11.1.x. The patch modifies QEMU source code, which is
  licensed under the GNU General Public License version 2.
 License: GPL-2
 

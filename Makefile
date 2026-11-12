@@ -1,5 +1,5 @@
 PACKAGE_NAME = pve-qemu-anti-detection
-VERSION = 1.0.0
+VERSION = 1.1.2
 
 .PHONY: all build clean install deb
 
@@ -35,5 +35,5 @@ install:
 	install -m 644 hooks/99-pve-qemu-anti-detection $(DESTDIR)/etc/apt/apt.conf.d/
 
 	# Install systemd service
-	install -d $(DESTDIR)/lib/systemd/system
-	install -m 644 systemd/pve-qemu-anti-detection-rebuild.service $(DESTDIR)/lib/systemd/system/
+	install -d $(DESTDIR)/usr/lib/systemd/system
+	install -m 644 systemd/pve-qemu-anti-detection-rebuild.service $(DESTDIR)/usr/lib/systemd/system/

@@ -299,7 +299,7 @@ Background rebuild:
 | `/usr/src/pve-qemu-anti-detection/patches/` | Patch files |
 | `/etc/pve-qemu-anti-detection.conf` | Configuration |
 | `/etc/apt/apt.conf.d/99-pve-qemu-anti-detection` | APT hook |
-| `/lib/systemd/system/pve-qemu-anti-detection-rebuild.service` | Systemd service |
+| `/usr/lib/systemd/system/pve-qemu-anti-detection-rebuild.service` | Systemd service |
 | `/var/lib/pve-qemu-anti-detection/` | Build directory and state |
 | `/var/log/pve-qemu-anti-detection.log` | Build log |
 
